@@ -30,8 +30,8 @@ class Enemy(GameObject):
         self.billboard.setScale(2,1,3) 
         self.billboard.setBillboardPointEye()
         self.billboard.setZ(1.0)
-        self.billboard.setPos(0, 0, -0.4)  # Adjust the Z position to be above the ground
-        self.enemy_mask = BitMask32.bit(2) # Define mask for enemies
+        self.billboard.setPos(0, 0, -0.4) 
+        self.enemy_mask = BitMask32.bit(2) 
 
         self.playerNode.setIntoCollideMask(self.enemy_mask)
         self.playerNode.setPythonTag("object", self)
@@ -58,5 +58,5 @@ class Enemy(GameObject):
     def update(self, task):
         dt = globalClock.getDt()
 
-        GameObject.update(self, dt)  # Call the parent update method
+        GameObject.update(self, dt) 
         return task.cont

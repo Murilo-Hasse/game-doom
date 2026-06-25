@@ -48,24 +48,22 @@ class PlayerController(GameObject):
         self.gun.setFormat(self.gun.F_rgba)
         self.gun.setMagfilter(SamplerState.FT_nearest)
         self.gun.setMinfilter(SamplerState.FT_nearest)
-        # Create a card (2D quad)
+
         cm = CardMaker("gun")
-        cm.setFrame(-0.6, 0.6, -0.6, 0.6)  # size of sprite
+        cm.setFrame(-0.6, 0.6, -0.6, 0.6) 
 
         self.gun_node = app.aspect2d.attachNewNode(cm.generate())
         self.gun_node.setTexture(self.gun)
-        # Position it bottom-center (FPS style)
         self.gun_node.setPos(0, 0, -0.4)
         self.gun_node.setScale(2,1,1)
 
-        # Ensure it renders on top
         self.gun_node.setDepthTest(False)
         self.gun_node.setDepthWrite(False)
         self.gun_node.setTransparency(TransparencyAttrib.MAlpha)
         
         # ===== GUN COOLDOWN =====
-        self.shoot_cooldown = 0.4  # Time in seconds between shots (e.g., 0.3s = ~3 shots per second)
-        self.shoot_timer = 0.0     # Tracks remaining cooldown time
+        self.shoot_cooldown = 0.4  
+        self.shoot_timer = 0.0    
 
         # ===== SOUND =====
         self.shoot_sound = app.loader.loadSfx("assets/shoot.wav")
@@ -77,7 +75,7 @@ class PlayerController(GameObject):
         self.app.taskMgr.add(self.update, "player_update")
 
     # =========================================================
-    # MOUSE (UNCHANGED LOGIC)
+    # MOUSE
     # =========================================================
     def capture_mouse(self):
         props = WindowProperties()
@@ -149,26 +147,20 @@ class PlayerController(GameObject):
         if self.shoot_sound:
             self.shoot_sound.play()
 
-        # 1. The ray starts exactly where the camera is located in the world
         start_pos = self.app.cam.getPos(render)
         
-        # 2. Get the forward vector of the camera (where it is looking in the world)
-        # In Panda3D, Mat4.getRow(1) returns the forward (+Y) direction vector
         forward_vector = render.getRelativeVector(self.app.cam, Vec3(0, 1, 0))
-        forward_vector.normalize() # Ensure it's a unit vector
+        forward_vector.normalize() 
         
-        # 3. Project the ray end position forward by your weapon range
         weapon_range = 2000.0
         target_pos = start_pos + (forward_vector * weapon_range)
                 
-        # 4. Perform the raycast (using your enemy collision mask)
         mask = BitMask32.bit(2)
         result = self.app.bulletWorld.rayTestClosest(start_pos, target_pos, mask)
         if result.hasHit():
-            # 1. Get the raw Bullet node (e.g., BulletRigidBodyNode)
             hit_node = result.getNode() 
             hit_pos = result.getHitPos()
-            self.spawn_hit_particle(hit_pos-forward_vector*0.5)  # Spawn the particle slightly in front of the hit point
+            self.spawn_hit_particle(hit_pos-forward_vector*0.5) 
 
             if hit_node.hasPythonTag("object"):
                 enemy = hit_node.getPythonTag("object")
@@ -176,56 +168,50 @@ class PlayerController(GameObject):
                     enemy.takeDamage(50)
 
     def spawn_hit_particle(self, position):
-        # 1. Create the SequenceNode that will hold our frames
         anim_node = SequenceNode("spark_animation")
         
-        # 2. Generate a 2D card for every texture frame and add it as a child
         cm = CardMaker("spark_frame")
         cm.setFrame(-1, 1, -1, 1)
         
-        # Assuming you have 6 frames numbered 1 to 6
         for i in range(1, 7):
-            # Create a single frame card
             frame_card = cm.generate() 
             frame_nodepath = render.attachNewNode(frame_card)
             
-            # Load and apply the texture for this frame
             texture = self.app.loader.loadTexture(f"particles/spark{i}.png")
             frame_nodepath.setTexture(texture)
             
-            # Add this frame to our SequenceNode
             anim_node.addChild(frame_nodepath.node())
             
-            # Clean up the temporary node path, the raw node is safely inside anim_node now
             frame_nodepath.removeNode()
 
-        # 3. Configure and play the animation
-        anim_node.setFrameRate(30) # 30 frames per second
-        anim_node.loop(False)      # Don't loop; play once
-        anim_node.play()           # Start playing from frame 0
+        anim_node.setFrameRate(30) 
+        anim_node.loop(False)      
+        anim_node.play()         
         
-        # 4. Attach the SequenceNode to the scene graph
         spark = render.attachNewNode(anim_node)
         spark.setPos(position)
         spark.setScale(0.5)
         
-        # Apply rendering properties to the parent container
         spark.setTransparency(TransparencyAttrib.MAlpha)
         spark.setBillboardPointEye()
         
-        # 5. Clean up after the animation completes (6 frames at 30 fps = ~0.2 seconds)
         taskMgr.doMethodLater(0.2, lambda task: spark.removeNode(), "CleanUpSpark")
-    # =========================================================
-    # JUMP (SMOOTHER)
-    # =========================================================
+
+    ### JUMP 
     def jump(self):
         if self.grounded and self.inputHandler.keyMap["jump"]:
             self.velocity.z = self.jump_force
             self.grounded = False
+    ### Cleanup
+    def cleanup(self):
+            if hasattr(self, "playerNode"):
+                self.app.bulletWorld.removeCharacter(self.playerNode)
 
-    # =========================================================
-    # GRAVITY (stable integration)
-    # =========================================================
+            if self.playerNP:
+                self.playerNP.removeNode()
+            self.app.taskMgr.remove("player_update")
+
+    ### GRAVITY
     def apply_gravity(self, dt):
         if not self.grounded:
             self.velocity.z -= self.gravity * dt
@@ -246,14 +232,13 @@ class PlayerController(GameObject):
             self.shoot_weapon()
             self.shoot_timer = self.shoot_cooldown
 
-        GameObject.update(self, dt)  # Call the parent update method
+        GameObject.update(self, dt)  
 
         self.update_footsteps(dt)
 
         return Task.cont
 
     def update_footsteps(self, dt):
-        # Update footsteps
         is_moving_horizontally = Vec2(self.velocity.x, self.velocity.y).length() > 0.1
         if self.grounded and is_moving_horizontally:
             self.footstep_timer += dt

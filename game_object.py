@@ -17,7 +17,7 @@ class GameObject():
         self.walking = False
         self.grounded = True
         # --- BULLET PLAYER SHAPE ---
-        self.shape = BulletCapsuleShape(1.4, colliderHeight, 2)  # radius, height, axis ZUp
+        self.shape = BulletCapsuleShape(1.4, colliderHeight, 2)  
 
         self.playerNode = BulletCharacterControllerNode(self.shape, 0.4, colliderName)
 
@@ -26,21 +26,17 @@ class GameObject():
         app.bulletWorld.attachCharacter(self.playerNode)
         self.velocity = Vec3(0, 0, 0)
 
-        self.actor = self.playerNP  # for compatibility
+        self.actor = self.playerNP  
 
 
 
     def update(self, dt):
-        # If we're going faster than our maximum speed,
-        # set the velocity-vector's length to that maximum
         speed = self.velocity.length()
         if speed > self.maxSpeed:
             self.velocity.normalize()
             self.velocity *= self.maxSpeed
             speed = self.maxSpeed
 
-        # If we're walking, don't worry about friction.
-        # Otherwise, use friction to slow us down.
         if not self.walking:
             frictionVal = FRICTION*dt
             if frictionVal > speed:
@@ -52,9 +48,6 @@ class GameObject():
 
                 self.velocity += frictionVec
 
-        # Move the character, using our velocity and
-        # the time since the last update.
-        #self.actor.setPos(self.actor.getPos() + self.velocity * dt)
         self.playerNode.setLinearMovement(self.velocity, True)
         if self.playerNode.isOnGround():
             self.grounded = True

@@ -36,7 +36,6 @@ class Level:
 
         mesh = BulletTriangleMesh()
 
-        # IMPORTANT: apply model transform manually
         transform = terrain_col_np.getNetTransform()
 
         for geom in geom_node.getGeoms():
@@ -50,7 +49,6 @@ class Level:
 
         body_np = self.root.attachNewNode(body)
 
-        # ONLY position/rotation once (NO scale)
         body_np.setTransform(self.model.getTransform())
 
         bullet_world.attachRigidBody(body)

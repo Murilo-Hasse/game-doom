@@ -37,8 +37,6 @@ class MyApp(ShowBase):
         self.inputHandler = InputHandler(self)
         self.player = None  
         self.enemies = []   
-
-        # ---------------- SOUNDS ----------------
         self.death_sound = self.loader.loadSfx("assets/dead.wav")
 
         # ---------------- LEVEL ROOT ----------------
@@ -77,37 +75,30 @@ class MyApp(ShowBase):
         self.ui.create_main_menu(on_play=self.start_game)
 
     def start_game(self):
-        """Callback acionado ao clicar em 'JOGAR' ou 'RECOMEÇAR'."""
         self.ui.clear_menu()
         self.ui.clear_game_over()
         
-        # 1. Mostra o mundo 3D novamente
         self.level_root.show()
 
-        # 2. Prende e esconde o mouse para o controle de FPS
         props = WindowProperties()
         props.setCursorHidden(True)
         props.setMouseMode(WindowProperties.M_confined)
         self.win.requestProperties(props)
 
-        # 3. Carrega o nível e os inimigos de forma limpa
         self.switch_level(
             "maps/doorless2.glb",
             Vec3(29.929702, -23.101972, 5.3600015)
         )
         
-        self.game_hud.show() # Mostra a vida/mira
+        self.game_hud.show()
         self.game_running = True
 
     def game_over(self):
-        # 1. Para completamente as atualizações do loop (física, inimigos, HUD)
         self.game_running = False
         self.game_hud.hide()
-        
-        # 2. Oculta o mundo 3D (para a tela preta do menu aparecer de fundo sem o jogo atrás)
         self.level_root.hide()
-        
-        # 3. Libera o cursor do mouse e desenha a interface na tela vazia
+        self.player.cleanup()
+        self.enemies.clear()
         self.ui.create_game_over_screen(on_restart=self.start_game)
 
     # =========================================================
@@ -174,15 +165,12 @@ class MyApp(ShowBase):
         if hasattr(self, 'game_hud'):
             self.game_hud.update_enemies(self.enemy_count, 10)
         
-        # Teste de colisão de fim de jogo
-        if self.enemy_count < 9:
+        if self.enemy_count <= 0:
             self.game_over()
 
     def update(self, task):
         dt = globalClock.getDt()
         
-        # Se 'game_running' for Falso (Menu ou Game Over), ignora este bloco inteiro.
-        # Isso efetivamente "pausa" e quebra o ciclo de gameplay.
         if self.game_running:
             self.update_enemies()
             self.bulletWorld.doPhysics(dt)

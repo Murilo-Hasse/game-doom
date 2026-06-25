@@ -211,7 +211,7 @@ class PlayerController(GameObject):
     def cleanup(self):
             if hasattr(self, "playerNode"):
                 self.app.bulletWorld.removeCharacter(self.playerNode)
-
+            self.gun_node.removeNode()
             if self.playerNP:
                 self.playerNP.removeNode()
             self.app.taskMgr.remove("player_update")

@@ -41,13 +41,13 @@ class MenuUI:
         )
 
         subtitle = OnscreenText(
-            text="um jogo da UTFPR",
+            text="A Doom-Game",
             pos=(0, 0.43), scale=0.05,
             fg=(0.7, 0.7, 0.7, 1), align=TextNode.ACenter
         )
 
         instructions = OnscreenText(
-            text="W A S D — Movimentação\nESPAÇO — Pular\nMOUSE — Câmera",
+            text="W A S D — Movimentação\nESPAÇO — Pular\nMOUSE — Câmera\nBOTÃO ESQUERDO DO MOUSE — Atirar",
             pos=(0, 0.1), scale=0.06,
             fg=(0.85, 0.85, 0.85, 1), align=TextNode.ACenter
         )

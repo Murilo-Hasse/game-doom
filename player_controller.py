@@ -3,7 +3,7 @@ from direct.task import Task
 from panda3d.core import SamplerState
 from game_object import GameObject
 from input_handler import InputHandler
-from panda3d.core import TransparencyAttrib, BitMask32
+from panda3d.core import TransparencyAttrib, BitMask32, TextureStage
 class PlayerController(GameObject):
 
     def __init__(self, app):
@@ -60,7 +60,12 @@ class PlayerController(GameObject):
         self.gun_node.setDepthTest(False)
         self.gun_node.setDepthWrite(False)
         self.gun_node.setTransparency(TransparencyAttrib.MAlpha)
-        
+        self.current_frame = 0
+        self.frame_duration = 0.08
+        self.anim_timer = 0
+        self.is_shooting = False
+        self.gun_frames = 8
+        self.set_frame(0)
         # ===== GUN COOLDOWN =====
         self.shoot_cooldown = 0.4  
         self.shoot_timer = 0.0    
@@ -220,20 +225,68 @@ class PlayerController(GameObject):
     # =========================================================
     # UPDATE
     # =========================================================
+    def set_frame(self, frame):
+        frame_width = 1 / self.gun_frames
+
+        self.gun_node.setTexScale(
+            TextureStage.getDefault(),
+            frame_width,
+            1
+        )
+
+        self.gun_node.setTexOffset(
+            TextureStage.getDefault(),
+            frame * frame_width,
+            0
+        )
+
+
+    def play_gun_animation(self):
+        self.current_frame = 0
+        self.anim_timer = 0
+        self.is_shooting = True
+
+        self.set_frame(0)
+
+
+    def update_gun_animation(self, dt):
+        if not self.is_shooting:
+            return
+
+        self.anim_timer += dt
+
+        if self.anim_timer >= self.frame_duration:
+
+            self.anim_timer = 0
+            self.current_frame += 1
+
+            if self.current_frame >= self.gun_frames:
+                self.current_frame = 0
+                self.is_shooting = False
+
+            self.set_frame(self.current_frame)
+    
     def update(self, task):
         dt = globalClock.getDt()
+
+        self.update_gun_animation(dt)
+
         if self.shoot_timer > 0:
             self.shoot_timer -= dt
+
         self.update_mouse()
         self.move()
         self.jump()
         self.apply_gravity(dt)
-        if(self.inputHandler.keyMap["shoot"] and self.shoot_timer <= 0):
+
+        if self.inputHandler.keyMap["shoot"] and self.shoot_timer <= 0:
             self.shoot_weapon()
+
+            self.play_gun_animation()   # ← add this
+
             self.shoot_timer = self.shoot_cooldown
 
-        GameObject.update(self, dt)  
-
+        GameObject.update(self, dt)
         self.update_footsteps(dt)
 
         return Task.cont

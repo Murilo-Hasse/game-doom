@@ -1,9 +1,9 @@
-from panda3d.core import WindowProperties, Vec3
+from panda3d.core import WindowProperties, Vec3, Vec2, CardMaker
 from direct.task import Task
-
+from panda3d.core import SamplerState
 from game_object import GameObject
 from input_handler import InputHandler
-
+from panda3d.core import TransparencyAttrib, BitMask32
 
 class PlayerController(GameObject):
 
@@ -44,7 +44,33 @@ class PlayerController(GameObject):
         self.center_x = self.app.win.getXSize() // 2
         self.center_y = self.app.win.getYSize() // 2
 
+        #=====GUN========
+         # Load gun sprite
+        self.gun = app.loader.loadTexture("gun.png")
+        self.gun.setFormat(self.gun.F_rgba)
+        self.gun.setMagfilter(SamplerState.FT_nearest)
+        self.gun.setMinfilter(SamplerState.FT_nearest)
+        # Create a card (2D quad)
+        cm = CardMaker("gun")
+        cm.setFrame(-0.6, 0.6, -0.6, 0.6)  # size of sprite
+
+        self.gun_node = app.aspect2d.attachNewNode(cm.generate())
+        self.gun_node.setTexture(self.gun)
+        # Position it bottom-center (FPS style)
+        self.gun_node.setPos(0, 0, -0.4)
+        self.gun_node.setScale(2,1,1)
+
+        # Ensure it renders on top
+        self.gun_node.setDepthTest(False)
+        self.gun_node.setDepthWrite(False)
+        self.gun_node.setTransparency(TransparencyAttrib.MAlpha)
         self.capture_mouse()
+
+        # ===== SOUND =====
+        self.shoot_sound = app.loader.loadSfx("assets/shoot.wav")
+        self.footstep_sound = app.loader.loadSfx("assets/footstep.wav")
+        self.footstep_timer = 0.0
+        self.footstep_delay = 0.35
 
         self.app.taskMgr.add(self.update, "player_update")
 
@@ -115,6 +141,48 @@ class PlayerController(GameObject):
         self.velocity.x = direction.x * self.speed
         self.velocity.y = direction.y * self.speed
 
+
+    def shoot_weapon(self):
+        # Play shooting sound
+        if self.shoot_sound:
+            self.shoot_sound.play()
+
+        # 1. Get camera lens and screen center
+        lens = self.app.cam.node().getLens()
+        screen_pos = (0, 0) # Exact center of the screen (crosshair)
+        
+        near_point = Vec3()
+        far_point = Vec3()
+        
+        if lens.extrude(screen_pos, near_point, far_point):
+            # Convert relative cam points to world space
+            start_pos = render.getRelativePoint(self.app.cam, near_point)
+            end_pos = render.getRelativePoint(self.app.cam, far_point)
+            
+            # Calculate range (e.g., weapon range of 200 units)
+            direction = end_pos - start_pos
+            direction.normalize()
+            weapon_range = 20000.0
+            target_pos = start_pos + (direction * weapon_range)
+            
+            # 2. Define what the ray is allowed to hit
+            # This mask looks for bit 2 (Enemies) and optionally bit 1 (World/Walls)
+            mask = BitMask32.bit(2) 
+            
+            # 3. Perform the raycast
+            result = self.app.bulletWorld.rayTestClosest(start_pos, target_pos)
+            
+            if result.hasHit():
+                hit_node = result.getNode()
+                print(f"Bullet struck: {hit_node.getName()}")
+                
+                # 4. Check if the hit node contains an Enemy object
+                if hit_node.hasPythonTag("object"):
+                    hit_object = hit_node.getPythonTag("object")
+                    
+                    # Check if it has a takeDamage method and call it!
+                    if hasattr(hit_object, "takeDamage"):
+                        hit_object.takeDamage(damage=25)
     # =========================================================
     # JUMP (SMOOTHER)
     # =========================================================
@@ -141,8 +209,20 @@ class PlayerController(GameObject):
         self.move()
         self.jump()
         self.apply_gravity(dt)
-
+        if(self.inputHandler.keyMap["shoot"]):
+            self.shoot_weapon()
+            self.inputHandler.keyMap["shoot"] = False
         GameObject.update(self, dt)  # Call the parent update method
 
+        # Update footsteps
+        is_moving_horizontally = Vec2(self.velocity.x, self.velocity.y).length() > 0.1
+        if self.grounded and is_moving_horizontally:
+            self.footstep_timer += dt
+            if self.footstep_timer >= self.footstep_delay:
+                self.footstep_timer = 0.0
+                if self.footstep_sound:
+                    self.footstep_sound.play()
+        else:
+            self.footstep_timer = 0.0
 
         return Task.cont

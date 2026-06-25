@@ -7,7 +7,8 @@ class InputHandler:
             "left" : False,
             "right" : False,
             "shoot" : False,
-            "jump" : False
+            "jump" : False,
+            "debug": False
         }
         app.accept("w", self.updateKeyMap, ["up", True])
         app.accept("w-up", self.updateKeyMap, ["up", False])
@@ -21,7 +22,8 @@ class InputHandler:
         app.accept("mouse1-up", self.updateKeyMap, ["shoot", False])
         app.accept("space", self.updateKeyMap, ["jump", True])
         app.accept("space-up", self.updateKeyMap, ["jump", False])
-
+        app.accept("f3", self.updateKeyMap, ["debug", True])
+        app.accept("f3-up", self.updateKeyMap, ["debug", False])
 
 
     def updateKeyMap(self, controlName, controlState):

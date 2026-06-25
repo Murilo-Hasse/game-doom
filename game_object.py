@@ -5,7 +5,7 @@ from panda3d.bullet import BulletCharacterControllerNode, BulletCapsuleShape
 FRICTION = 150.0
 
 class GameObject():
-    def __init__(self, app, pos, maxHealth, maxSpeed, colliderName):
+    def __init__(self, app, pos, maxHealth, maxSpeed, colliderName,colliderHeight=1.4):
         self.app = app
 
         # --- health ---
@@ -17,15 +17,13 @@ class GameObject():
         self.walking = False
         self.grounded = True
         # --- BULLET PLAYER SHAPE ---
-        self.shape = BulletCapsuleShape(1.4, 1.4, 1)  # radius, height, axis ZUp
+        self.shape = BulletCapsuleShape(1.4, colliderHeight, 2)  # radius, height, axis ZUp
 
         self.playerNode = BulletCharacterControllerNode(self.shape, 0.4, colliderName)
 
         self.playerNP = app.render.attachNewNode(self.playerNode)
         self.playerNP.setPos(pos)
-        # attach to physics world
         app.bulletWorld.attachCharacter(self.playerNode)
-        # optional tracking
         self.velocity = Vec3(0, 0, 0)
 
         self.actor = self.playerNP  # for compatibility

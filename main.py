@@ -1,5 +1,5 @@
 from direct.showbase.ShowBase import ShowBase
-from panda3d.core import AmbientLight, Vec4, Vec3, DirectionalLight, loadPrcFileData
+from panda3d.core import AmbientLight, Vec4, Vec3, DirectionalLight, loadPrcFileData, WindowProperties
 from panda3d.bullet import (
     BulletWorld,
     BulletRigidBodyNode,
@@ -12,28 +12,40 @@ from input_handler import InputHandler
 from player_controller import PlayerController
 from level import Level
 from enemy import Enemy
+from game_hud import GameHUD
+from ui import MenuUI
 
 loadPrcFileData("", """
     fullscreen true
     win-size 1920 1080
 """)
 
-
 class MyApp(ShowBase):
     def __init__(self):
         super().__init__()
-
         self.disableMouse()
+
+        # Flag para controlar se a simulação física/gameplay está rodando
+        self.game_running = False
+
+        # ---------------- SYSTEM UI ----------------
+        self.ui = MenuUI(self)
+        self.game_hud = GameHUD(self)
+        self.game_hud.hide() # Esconde o HUD no menu principal
 
         # ---------------- INPUT ----------------
         self.inputHandler = InputHandler(self)
+        self.player = None  
+        self.enemies = []   
+
+        # ---------------- SOUNDS ----------------
+        self.death_sound = self.loader.loadSfx("assets/dead.wav")
 
         # ---------------- LEVEL ROOT ----------------
+        # Esse node vai conter tudo relacionado ao gameplay (mapa, jogador, inimigos)
         self.level_root = self.render.attachNewNode("level_root")
+        self.level_root.hide() # Começa escondido enquanto estamos no menu principal
         self.current_level = None
-
-        # ---------------- SCENE (STATIC ENV ROOT) ----------------
-        self.map_root = self.level_root.attachNewNode("map_root")
 
         # ---------------- LIGHTS ----------------
         ambientLight = AmbientLight("ambient light")
@@ -55,43 +67,73 @@ class MyApp(ShowBase):
         # ---------------- DEBUG ----------------
         debugNode = BulletDebugNode('Debug')
         debugNode.showWireframe(True)
-        debugNode.showConstraints(True)
-        debugNode.showBoundingBoxes(False)
-        debugNode.showNormals(False)
-
         self.debugNP = self.render.attachNewNode(debugNode)
-        #self.debugNP.show()
-
         self.bulletWorld.setDebugNode(debugNode)
-
-        # ---------------- PLAYER ----------------
-        self.player = PlayerController(self)
 
         # ---------------- UPDATE LOOP ----------------
         self.updateTask = taskMgr.add(self.update, "update")
 
-        # ---------------- LOAD FIRST LEVEL ----------------
+        # Inicia mostrando o Menu Principal
+        self.ui.create_main_menu(on_play=self.start_game)
+
+    def start_game(self):
+        """Callback acionado ao clicar em 'JOGAR' ou 'RECOMEÇAR'."""
+        self.ui.clear_menu()
+        self.ui.clear_game_over()
+        
+        # 1. Mostra o mundo 3D novamente
+        self.level_root.show()
+
+        # 2. Prende e esconde o mouse para o controle de FPS
+        props = WindowProperties()
+        props.setCursorHidden(True)
+        props.setMouseMode(WindowProperties.M_confined)
+        self.win.requestProperties(props)
+
+        # 3. Carrega o nível e os inimigos de forma limpa
         self.switch_level(
             "maps/doorless2.glb",
-            Vec3(20.504173, 22.341251, 5.3599977)
+            Vec3(29.929702, -23.101972, 5.3600015)
         )
-        enemy = Enemy(self, Vec3(22, 22, 5))
+        
+        self.game_hud.show() # Mostra a vida/mira
+        self.game_running = True
+
+    def game_over(self):
+        # 1. Para completamente as atualizações do loop (física, inimigos, HUD)
+        self.game_running = False
+        self.game_hud.hide()
+        
+        # 2. Oculta o mundo 3D (para a tela preta do menu aparecer de fundo sem o jogo atrás)
+        self.level_root.hide()
+        
+        # 3. Libera o cursor do mouse e desenha a interface na tela vazia
+        self.ui.create_game_over_screen(on_restart=self.start_game)
 
     # =========================================================
     # LEVEL SYSTEM
     # =========================================================
     def switch_level(self, level_path, spawn_pos):
+        # Limpa os inimigos da partida anterior
+        if hasattr(self, 'enemies') and self.enemies:
+            for enemy in self.enemies:
+                if hasattr(enemy, 'destroy'):
+                    enemy.destroy()
+            self.enemies.clear()
 
-        # ---- remove previous level ----
+        # Limpa o jogador anterior se existir
+        if hasattr(self, 'player') and self.player is not None:
+            if hasattr(self.player, 'destroy'):
+                self.player.destroy()
+
+        # Remove o cenário antigo
         if self.current_level is not None:
-
             if hasattr(self.current_level, "root"):
                 self.current_level.root.removeNode()
-
             if hasattr(self.current_level, "collision_body"):
                 self.bulletWorld.removeRigidBody(self.current_level.collision_body)
 
-        # ---- load new level ----
+        # Carrega o mapa novo anexado à raiz do cenário do gameplay
         self.current_level = Level(
             level_path,
             spawn_pos,
@@ -100,53 +142,52 @@ class MyApp(ShowBase):
             self.level_root
         )
 
-
-        # ensure scene is parented properly
         if hasattr(self.current_level, "root"):
             self.current_level.root.reparentTo(self.level_root)
 
-        # ---- reset player ----
-    
-          # ---------------- LIGHTS ----------------
-        ambientLight = AmbientLight("ambient light")
-        ambientLight.setColor(Vec4(0.2, 0.2, 0.2, 1))
-        self.ambientLightNodePath = self.render.attachNewNode(ambientLight)
-        self.render.setLight(self.ambientLightNodePath)
-
-        mainLight = DirectionalLight("main light")
-        self.mainLightNodePath = self.render.attachNewNode(mainLight)
-        self.mainLightNodePath.setHpr(45, -45, 0)
-        self.render.setLight(self.mainLightNodePath)
-
-        self.render.setShaderAuto()
-
-        # ---------------- PHYSICS ----------------
-        self.bulletWorld = BulletWorld()
-        self.bulletWorld.setGravity(Vec3(0, 0, -9.81))
+        # Recria as colisões estáticas no mundo físico
         self.current_level.build_collision(self.bulletWorld)
-
-        # ---------------- DEBUG ----------------
-        debugNode = BulletDebugNode('Debug')
-        debugNode.showWireframe(True)
-        debugNode.showConstraints(True)
-        debugNode.showBoundingBoxes(False)
-        debugNode.showNormals(False)
-        self.bulletWorld.setDebugNode(debugNode)
-        self.debugNP = self.render.attachNewNode(debugNode)
-        #self.debugNP.show()
-        self.player.__init__(self)
+        
+        # Instancia o jogador passando "self" para que ele seja filho do level_root interna/externamente
+        self.player = PlayerController(self)
         self.player.playerNP.setPos(spawn_pos)
-
+        
+        # Gera os Inimigos
+        self.enemy_count = 10
+        self.enemies = [
+            Enemy(self, Vec3(22, 22, 5)),
+            Enemy(self, Vec3(35.693195, 45.9015, 6.359986)),
+            Enemy(self, Vec3(22.48859, 45.908767, 4.3599963)),
+            Enemy(self, Vec3(23.459482, 54.044605, -12.640005)),
+            Enemy(self, Vec3(-0.5993993, 104.69268, -12.640011)),
+            Enemy(self, Vec3(40.782073, 104.492454, -12.64001)),
+            Enemy(self, Vec3(-20.766042, 135.44317, -8.640012)),
+            Enemy(self, Vec3(-33.921745, 173.79516, -6.6400136)),
+            Enemy(self, Vec3(27.136106, 169.1285, -3.6400151)),
+            Enemy(self, Vec3(25.280292, 185.7949, -3.6400141))
+        ]
 
     # =========================================================
     # UPDATE LOOP
     # =========================================================
+    def update_enemies(self):
+        if hasattr(self, 'game_hud'):
+            self.game_hud.update_enemies(self.enemy_count, 10)
+        
+        # Teste de colisão de fim de jogo
+        if self.enemy_count < 9:
+            self.game_over()
+
     def update(self, task):
         dt = globalClock.getDt()
-
-        self.bulletWorld.doPhysics(dt)
+        
+        # Se 'game_running' for Falso (Menu ou Game Over), ignora este bloco inteiro.
+        # Isso efetivamente "pausa" e quebra o ciclo de gameplay.
+        if self.game_running:
+            self.update_enemies()
+            self.bulletWorld.doPhysics(dt)
+            
         return task.cont
-
 
 app = MyApp()
 app.run()

@@ -11,7 +11,8 @@ class Enemy(GameObject):
             pos=pos, 
             maxHealth=80,
             maxSpeed=400,
-            colliderName="enemy_collider"
+            colliderName="enemy_collider",
+            colliderHeight=2.4
         )
         
         cm = CardMaker('enemy_billboard_card')
@@ -29,31 +30,31 @@ class Enemy(GameObject):
         self.billboard.setScale(2,1,3) 
         self.billboard.setBillboardPointEye()
         self.billboard.setZ(1.0)
-
-        ##Collision mask
+        self.billboard.setPos(0, 0, -0.4)  # Adjust the Z position to be above the ground
         self.enemy_mask = BitMask32.bit(2) # Define mask for enemies
 
-        enemy_shape = BulletCapsuleShape(1.4, 1.4, 1) # radius, height, up-axis
-        enemy_node = BulletRigidBodyNode('Enemy')
-        enemy_node.addShape(enemy_shape)
-        enemy_node.setIntoCollideMask(self.enemy_mask)
-        enemy_node.setPythonTag("object", self) 
-        app.bulletWorld.attachRigidBody(enemy_node)
-        self.app.taskMgr.add(self.update, "enemy_update_task")
+        self.playerNode.setIntoCollideMask(self.enemy_mask)
+        self.playerNode.setPythonTag("object", self)
+        self.task_name = f"enemy_update_task_{id(self)}"
+        self.app.taskMgr.add(self.update, self.task_name)
 
 
     def takeDamage(self, damage):
-        self.health -= damage
-        print(f"Enemy took damage! Remaining health: {self.health}")
-        
+        self.health -= damage        
         if self.health <= 0:
             self.die()
 
     def die(self):
-        print("Enemy died!")
-        self.app.bulletWorld.removeRigidBody(self.playerNode)
-        self.actor.removeNode()
+        if hasattr(self.app, 'death_sound') and self.app.death_sound:
+            self.app.death_sound.play()
+        self.app.enemy_count -= 1  
+        self.cleanup() 
     
+    def cleanup(self):
+        self.app.bulletWorld.removeCharacter(self.playerNode)
+        self.app.taskMgr.remove(self.task_name)
+        self.actor.removeNode()
+
     def update(self, task):
         dt = globalClock.getDt()
 
